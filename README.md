@@ -3,6 +3,8 @@ interprete zpl2 para elgin pplb
 
 Estrutura
 
+
+```
 drivers_impressora_virtual/
 ├── src/
 │   ├── printer_controller.c     // Ponto 4 - Principal
@@ -13,3 +15,4 @@ drivers_impressora_virtual/
 ├── include/
 ├── build/
 └── README.md
+```
