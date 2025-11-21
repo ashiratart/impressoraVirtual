@@ -1,0 +1,21 @@
+[2025-11-21 07:55:41] === Início do instalador de impressora (corrigido) ===
+[2025-11-21 07:55:41] com0com não detectado ou par não encontrado.
+[2025-11-21 07:55:41] COM3 detectado em SERIALCOMM -> usando COM3
+[2025-11-21 07:55:47] Porta escolhida: COM3
+[2025-11-21 07:55:47] Testando porta COM3 com CreateFile...
+[2025-11-21 07:55:47] Teste CreateFile(\\.\COM3) OK (porta aberta com sucesso).
+[2025-11-21 07:55:47] Resultado teste porta: 1
+[2025-11-21 07:55:47] Tentando instalar driver 'Generic / Text Only' (PrintUIEntry)...
+[2025-11-21 07:55:47] Executando comando: rundll32 printui.dll,PrintUIEntry /ia /m "Generic / Text Only" /f "C:\WINDOWS\inf\ntprint.inf"
+[2025-11-21 07:55:48] Comando retornou: 0
+[2025-11-21 07:55:48] PrintUIEntry instalou driver (exit 0).
+[2025-11-21 07:55:57] Nao foi possivel abrir chave do spooler (Local Port) - talvez faltando permissao ou chave nao existe: SYSTEM\CurrentControlSet\Control\Print\Monitors\Local Port\Ports
+[2025-11-21 07:55:57] Porta COM3: nao registrada no spooler. Tentando registrar via AddPortA...
+[2025-11-21 07:55:57] AddPortA resultado: 0 (porta enviada ao spooler: COM3:)
+[2025-11-21 07:55:57] AddPortA retornou falha (isso pode ser esperado em alguns sistemas).
+Se falhar, a criação da impressora pode retornar erro 1796 (porta desconhecida).
+Considere instalar/usar com0com que fornece porta-monitor apropriado para o spooler.
+[2025-11-21 07:55:57] Tentando criar impressora RAW: Genérica RAW on COM3:
+[2025-11-21 07:55:58] AddPrinterA sucesso. Impressora criada: Genérica RAW
+[2025-11-21 07:55:58] Impressora criada com sucesso: Genérica RAW
+[2025-11-21 07:56:00] === Fim do instalador de impressora (corrigido) ===

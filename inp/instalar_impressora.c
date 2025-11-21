@@ -1,22 +1,10 @@
-// install_printer.c
-// Compilar: cl /EHsc install_printer.c
-// Funcionalidade: instala impressora "Genérica RAW" com:
-// - seleção automática de porta do par com0com (prefere COM3)
-// - instalação do driver "Generic / Text Only" com vários fallbacks
-// - tentativa de ativar recursos de impressão (PowerShell/DISM fallback)
-// - validação da porta COM com CreateFile
-// - log detalhado em install_printer.log na mesma pasta do exe
-// - aceita parâmetro /port=COMx para forçar porta
-//
-// Observações: algumas operações (instalar drivers, ativar features) dependem da versão do Windows
-// e permissões/Políticas. O programa tenta várias estratégias e grava logs para diagnóstico.
-
 #define _CRT_SECURE_NO_WARNINGS
 #include <windows.h>
 #include <winspool.h>
 #include <stdio.h>
 #include <time.h>
 #include <string.h>
+#include <stdarg.h>
 
 #pragma comment(lib, "Winspool.lib")
 #pragma comment(lib, "Advapi32.lib")
@@ -198,6 +186,32 @@ BOOL portaExisteSerialcomm(const char* comName) {
     return found;
 }
 
+// ---------- Verifica se porta está registrada no spooler (Local Port monitor) ----------
+BOOL portaRegistradaNoSpooler(const char* portaComWithColon) {
+    // portaComWithColon deve vir no formato "COM3:"
+    HKEY hKey;
+    const char *regPath = "SYSTEM\\CurrentControlSet\\Control\\Print\\Monitors\\Local Port\\Ports";
+    if (RegOpenKeyExA(HKEY_LOCAL_MACHINE, regPath, 0, KEY_READ, &hKey) != ERROR_SUCCESS) {
+        log_printf("Nao foi possivel abrir chave do spooler (Local Port) - talvez faltando permissao ou chave nao existe: %s", regPath);
+        return FALSE;
+    }
+
+    char name[256];
+    DWORD nameLen, type, dataLen;
+    BOOL found = FALSE;
+
+    for (DWORD i=0;; i++) {
+        nameLen = sizeof(name);
+        dataLen = 0;
+        LONG res = RegEnumValueA(hKey, i, name, &nameLen, NULL, &type, NULL, &dataLen);
+        if (res != ERROR_SUCCESS) break;
+        // name contém o nome da porta registrada (ex: "COM3:")
+        if (_stricmp(name, portaComWithColon) == 0) { found = TRUE; break; }
+    }
+    RegCloseKey(hKey);
+    return found;
+}
+
 // ---------- Testa porta COM (abre com CreateFile) ----------
 BOOL testarPortaCom(const char* comName) {
     char alvo[64];
@@ -222,7 +236,6 @@ int run_system_and_log(const char *cmd) {
     return rc;
 }
 
-// tentativa 1: PrintUIEntry sem /h /v (mais compatível)
 BOOL tentarPrintUIEntry() {
     char infPath[MAX_PATH];
     if (ExpandEnvironmentStringsA("%WINDIR%\\inf\\ntprint.inf", infPath, (DWORD)sizeof(infPath)) == 0) {
@@ -240,7 +253,6 @@ BOOL tentarPrintUIEntry() {
     return (rc == 0);
 }
 
-// tentativa 2: AddPrinterDriverA via API
 BOOL tentarAddPrinterDriverAPI() {
     DRIVER_INFO_3A di;
     memset(&di, 0, sizeof(di));
@@ -264,7 +276,6 @@ BOOL tentarAddPrinterDriverAPI() {
     return TRUE;
 }
 
-// tentativa 3: pnputil para adicionar INF / instalar driver via driver store (fallback)
 BOOL tentarPnPUtilAdd() {
     char infPath[MAX_PATH];
     if (ExpandEnvironmentStringsA("%WINDIR%\\inf\\ntprint.inf", infPath, (DWORD)sizeof(infPath)) == 0) {
@@ -277,21 +288,14 @@ BOOL tentarPnPUtilAdd() {
     }
 
     char cmd[1024];
-    // pnputil /add-driver <inf path> /install
     snprintf(cmd, sizeof(cmd), "pnputil /add-driver \"%s\" /install", infPath);
     int rc = run_system_and_log(cmd);
-    // pnputil retorna 0 em sucesso
     return (rc == 0);
 }
 
-// tentativa 4: habilitar recursos relacionados à impressão via PowerShell (Enable-WindowsOptionalFeature)
-// Observação: nomes de features podem variar entre versões; fazemos tentativa genérica segura
 BOOL tentarAtivarFeaturesImpressao() {
-    // comandos PowerShell - tenta várias features conhecidas; executa em modo noninteractive
     const char *comandos[] = {
-        // Tentativa genérica: instalar feature de impressão (pode falhar sem efeito)
         "powershell -NoProfile -Command \"Enable-WindowsOptionalFeature -Online -FeatureName Printing-Foundation-Features -All -NoRestart -ErrorAction SilentlyContinue; exit $LASTEXITCODE\"",
-        // Fallback para DISM:
         "cmd.exe /c dism /online /Enable-Feature /FeatureName:Printing-Foundation-Features /All /NoRestart",
         NULL
     };
@@ -310,6 +314,10 @@ BOOL tentarAtivarFeaturesImpressao() {
 
 // ---------- criar porta no spooler (tenta AddPortA dinamicamente) ----------
 BOOL criarPortaNoSpooler(const char* porta) {
+    // porta vem no formato "COM3" -> adicionamos ':' para o spooler
+    char nomePorta[64];
+    snprintf(nomePorta, sizeof(nomePorta), "%s:", porta);
+
     HMODULE h = LoadLibraryA("winspool.drv");
     if (!h) {
         log_printf("LoadLibrary(winspool.drv) falhou");
@@ -319,18 +327,19 @@ BOOL criarPortaNoSpooler(const char* porta) {
     PFN_AddPortA pAddPort = (PFN_AddPortA)GetProcAddress(h, "AddPortA");
     if (!pAddPort) { FreeLibrary(h); log_printf("GetProcAddress(AddPortA) falhou"); return FALSE; }
 
-    BOOL res = pAddPort(NULL, NULL, (LPSTR)porta);
+    // AddPortA espera string terminada em '\0' com o nome da porta (ex: "COM3:")
+    BOOL res = pAddPort(NULL, NULL, nomePorta);
     FreeLibrary(h);
-    log_printf("AddPortA resultado: %d", res);
+    log_printf("AddPortA resultado: %d (porta enviada ao spooler: %s)", res, nomePorta);
     return res;
 }
 
 // ---------- criar impressora RAW ----------
-BOOL criarImpressoraRAW(const char* nome, const char* porta, const char* driver) {
+BOOL criarImpressoraRAW(const char* nome, const char* portaWithColon, const char* driver) {
     PRINTER_INFO_2A pi;
     memset(&pi, 0, sizeof(pi));
     pi.pPrinterName = (LPSTR)nome;
-    pi.pPortName = (LPSTR)porta;
+    pi.pPortName = (LPSTR)portaWithColon; // ex: "COM3:"
     pi.pDriverName = (LPSTR)driver;
     pi.pPrintProcessor = "WinPrint";
     pi.pDatatype = "RAW";
@@ -367,7 +376,7 @@ int main(int argc, char **argv) {
     char exePath[MAX_PATH];
     getExecutablePath(exePath, sizeof(exePath));
     log_open(exePath);
-    log_printf("=== Início do instalador de impressora ===");
+    log_printf("=== Início do instalador de impressora (corrigido) ===");
 
     // Argumento opcional /port=COMx
     char portaForcada[64] = {0};
@@ -375,7 +384,6 @@ int main(int argc, char **argv) {
         log_printf("Porta forcada via argumento: %s", portaForcada);
     }
 
-    // Escolha de porta: prefer COM3 do par, senão a outra do par, senão COM3/COM4 detectados, senão fallback COM3
     char portaA[64] = {0}, portaB[64] = {0}, portaEscolhida[64] = {0};
 
     if (portaForcada[0]) {
@@ -384,6 +392,7 @@ int main(int argc, char **argv) {
     } else {
         if (com0comInstalado() && obterParExistente(portaA, sizeof(portaA), portaB, sizeof(portaB))) {
             log_printf("Par com0com detectado: %s <-> %s", portaA, portaB);
+            // prefere COM3 do par, senão usa a primeira
             if (_stricmp(portaA, "COM3") == 0 || _stricmp(portaB, "COM3") == 0) {
                 strncpy_s(portaEscolhida, sizeof(portaEscolhida), "COM3", _TRUNCATE);
             } else {
@@ -410,7 +419,7 @@ int main(int argc, char **argv) {
     MessageBoxA(NULL, msg, "Instalar Impressora", MB_OK);
     log_printf("Porta escolhida: %s", portaEscolhida);
 
-    // Testar porta com CreateFile (opcional; falha aqui não impede continuar)
+    // Testar porta com CreateFile (opcional)
     log_printf("Testando porta %s com CreateFile...", portaEscolhida);
     BOOL portaAberta = testarPortaCom(portaEscolhida);
     log_printf("Resultado teste porta: %d", portaAberta);
@@ -454,21 +463,29 @@ int main(int argc, char **argv) {
         MessageBoxA(NULL, "Driver 'Generic / Text Only' instalado (ou já presente). Prosseguindo...", "Info", MB_OK);
     }
 
-    // Tentar criar porta no spooler (não-fatal)
-    log_printf("Tentando AddPortA para %s (não-fatal)", portaEscolhida);
-    if (!criarPortaNoSpooler(portaEscolhida)) {
-        log_printf("AddPortA retornou falha (esperado em muitos casos).");
+    // Antes de tentar criar a porta no spooler, verificamos se ela já está registrada
+    char portaSpooler[64];
+    snprintf(portaSpooler, sizeof(portaSpooler), "%s:", portaEscolhida); // COM3:
+
+    if (portaRegistradaNoSpooler(portaSpooler)) {
+        log_printf("Porta %s já registrada no spooler.", portaSpooler);
     } else {
-        log_printf("AddPortA sucesso.");
+        log_printf("Porta %s nao registrada no spooler. Tentando registrar via AddPortA...", portaSpooler);
+        if (!criarPortaNoSpooler(portaEscolhida)) {
+            log_printf("AddPortA retornou falha (isso pode ser esperado em alguns sistemas).\n"
+                       "Se falhar, a criação da impressora pode retornar erro 1796 (porta desconhecida).\n"
+                       "Considere instalar/usar com0com que fornece porta-monitor apropriado para o spooler.");
+        } else {
+            log_printf("AddPortA sucesso para %s", portaSpooler);
+        }
     }
 
     // Criar impressora RAW
-    log_printf("Tentando criar impressora RAW: %s on %s", PRINTER_NAME, portaEscolhida);
-    if (!criarImpressoraRAW(PRINTER_NAME, portaEscolhida, DRIVER_NAME)) {
-        // Falha - registrar e mostrar erro
+    log_printf("Tentando criar impressora RAW: %s on %s", PRINTER_NAME, portaSpooler);
+    if (!criarImpressoraRAW(PRINTER_NAME, portaSpooler, DRIVER_NAME)) {
         DWORD err = GetLastError();
         log_printf("AddPrinterA falhou. GetLastError=%lu", (unsigned long)err);
-        mostrarErro("Falha ao criar impressora (AddPrinterA). Possível causa: driver ausente (erro 1797) ou parâmetros inválidos.");
+        mostrarErro("Falha ao criar impressora (AddPrinterA). Possível causa: porta ausente no spooler (erro 1796) ou parâmetros inválidos.");
         log_printf("Instalação abortada devido a falha em AddPrinterA.");
         log_close();
         return 1;
@@ -477,7 +494,7 @@ int main(int argc, char **argv) {
     log_printf("Impressora criada com sucesso: %s", PRINTER_NAME);
     MessageBoxA(NULL, "Impressora criada com sucesso!", "Sucesso", MB_OK);
 
-    log_printf("=== Fim do instalador de impressora ===");
+    log_printf("=== Fim do instalador de impressora (corrigido) ===");
     log_close();
     return 0;
 }
