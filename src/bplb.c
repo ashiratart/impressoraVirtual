@@ -75,12 +75,13 @@ void bplb_barcode_1d(FILE *fp, int x, int y, bplb_rotation_t rotation,
 }
 
 // Comandos de código de barras 2D PDF417
+// Comandos de código de barras 2D PDF417
 void bplb_barcode_2d_pdf417(FILE *fp, int x, int y, int max_width, int max_height,
                            int error_level, int compression, int module_width,
                            int module_height, int max_rows, int max_cols,
                            int truncate, bplb_rotation_t rotation,
                            const char *data) {
-    fprintf(fp, "b%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,\"%s\"" BPLB_LF,
+    fprintf(fp, "b%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,\"%s\"" BPLB_LF,
             x, y, max_width, max_height, error_level, compression,
             module_width, module_height, max_rows, max_cols, truncate,
             rotation, data);

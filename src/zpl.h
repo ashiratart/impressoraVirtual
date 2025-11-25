@@ -42,7 +42,7 @@
 // Comandos de imagem
 #define ZPL_IMAGE_DOWNLOAD "^DG"    // ^DGname,x,y - Download imagem
 #define ZPL_IMAGE_FIELD "^GF"       // ^GFa,b,c,d,data - Campo de imagem
-#define ZPL_IMAGE_RETRIEVE "^XG"    // ^XGname,x,y - Recuperar imagem
+#define ZPL_IMAGE_RETRIEVE "^XGR"    // ^XGname,x,y - Recuperar imagem
 
 // Comandos de formato
 #define ZPL_FORMAT_DOWNLOAD "^DF"   // ^DFname - Download formato
@@ -194,7 +194,7 @@ ZPLFont extract_A_parameters(const char *zpl_line) {
 }
 
 /**
- * Extrai dados do campo ^FD
+ * Extrai dados do campo ^FD (versão melhorada)
  */
 void extract_FD_data(const char *zpl_line, char *output) {
     output[0] = '\0';
@@ -208,6 +208,14 @@ void extract_FD_data(const char *zpl_line, char *output) {
                 strncpy(output, fd_start, len);
                 output[len] = '\0';
             }
+        } else {
+            // Se não encontrar ^FS, pega até o próximo ^ ou fim da string
+            int i = 0;
+            while (fd_start[i] && fd_start[i] != '^' && i < 255) {
+                output[i] = fd_start[i];
+                i++;
+            }
+            output[i] = '\0';
         }
     }
 }
@@ -283,11 +291,11 @@ void process_zpl_line(const char *zpl_line, FILE *out) {
             convert_GB_to_BPLB(pos.x, pos.y, width, height, thickness, out);
         }
     }
-    else if (strstr(zpl_line, "^XG")) {
+    else if (strstr(zpl_line, "^XGR")) {
         // Imagem
         ZPLPosition pos = extract_FO_coordinates(zpl_line);
         char image_name[128] = {0};
-        sscanf(zpl_line, "^XG%[^,^ ]", image_name);
+        sscanf(zpl_line, "^XGR%[^,^ ]", image_name);
         convert_XG_to_BPLB(pos.x, pos.y, image_name, out);
     }
     else if (strstr(zpl_line, "^FX")) {
