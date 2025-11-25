@@ -1,0 +1,174 @@
+[2025-11-25 15:44:12] Tradutor ZPL2->BPLB Avançado iniciado.
+[2025-11-25 15:44:12] === VERIFICACAO DE PERMISSOES ===
+[2025-11-25 15:44:12] Processo tem acesso ao token de segurança
+[2025-11-25 15:44:12] Acesso ao registro de impressoras: OK
+[2025-11-25 15:44:12] === INICIO DA EXECUCAO ===
+[2025-11-25 15:44:12] Tempo inicial: 9 ms
+[2025-11-25 15:44:12] === DETECÇÃO ALTERNATIVA DE IMPRESSORAS ===
+[2025-11-25 15:44:12] Flag LOCAL: 0 impressoras (buffer insuficiente)
+[2025-11-25 15:44:12] Flag CONNECTIONS: 0 impressoras (buffer insuficiente)
+[2025-11-25 15:44:12] Flag NETWORK: 0 impressoras
+[2025-11-25 15:44:12] Flag REMOTE: erro 124
+[2025-11-25 15:44:12] Flag SHARED: 0 impressoras
+[2025-11-25 15:44:13] Iniciando enumeração de impressoras...
+[2025-11-25 15:44:13] Encontradas 12 impressoras no sistema
+[2025-11-25 15:44:13] Impressora 1: TSC TTP-244CE
+[2025-11-25 15:44:13]   Driver: TSC TTP-244CE
+[2025-11-25 15:44:13]   Porta: USB001
+[2025-11-25 15:44:13] Impressora 2: OneNote for Windows 10
+[2025-11-25 15:44:13]   Driver: Microsoft Software Printer Driver
+[2025-11-25 15:44:13]   Porta: Microsoft.Office.OneNote_16001.14326.22594.0_x64__8wekyb3d8bbwe_microsoft.onenoteim_S-1-5-21-653901399-2161297532-101382850-3757
+[2025-11-25 15:44:13] Impressora 3: OneNote (Desktop)
+[2025-11-25 15:44:13]   Driver: Send to Microsoft OneNote 16 Driver
+[2025-11-25 15:44:13]   Porta: nul:
+[2025-11-25 15:44:13] Impressora 4: Microsoft XPS Document Writer
+[2025-11-25 15:44:13]   Driver: Microsoft XPS Document Writer v4
+[2025-11-25 15:44:13]   Porta: PORTPROMPT:
+[2025-11-25 15:44:13] Impressora 5: Microsoft Print to PDF
+[2025-11-25 15:44:13]   Driver: Microsoft Print To PDF
+[2025-11-25 15:44:13]   Porta: PORTPROMPT:
+[2025-11-25 15:44:13] Impressora 6: HP LaserJet Pro M428f-M429f PCL-6 (V4) (Rede)
+[2025-11-25 15:44:13]   Driver: HP LaserJet Pro M428f-M429f PCL-6 (V4)
+[2025-11-25 15:44:13]   Porta: WSD-7149693c-c033-47c1-9ee9-23506cbc8815
+[2025-11-25 15:44:13] Impressora 7: Genérica RAW
+[2025-11-25 15:44:13]   Driver: Generic / Text Only
+[2025-11-25 15:44:13]   Porta: COM3:
+[2025-11-25 15:44:13] Impressora 8: Fax - HP LaserJet Pro M428f-M429f
+[2025-11-25 15:44:13]   Driver: HPLJM428f-M429f_Fax_Driver
+[2025-11-25 15:44:13]   Porta: HPLJM428f-M429f_Fax_Port
+[2025-11-25 15:44:13] Impressora 9: Fax
+[2025-11-25 15:44:13]   Driver: Microsoft Shared Fax Driver
+[2025-11-25 15:44:13]   Porta: SHRFAX:
+[2025-11-25 15:44:13] Impressora 10: BTP-L42(U)
+[2025-11-25 15:44:13]   Driver: BTP-L42(U)
+[2025-11-25 15:44:13]   Porta: USB002
+[2025-11-25 15:44:13] Impressora 11: AnyDesk Printer
+[2025-11-25 15:44:13]   Driver: AnyDesk v4 Printer Driver
+[2025-11-25 15:44:13]   Porta: AD_Port
+[2025-11-25 15:44:13] Impressora 12: \\srvprint\Estilo
+[2025-11-25 15:44:13]   Driver: Canon iR C3000 Series PS3
+[2025-11-25 15:44:13]   Porta: 192.168.0.30_1
+[2025-11-25 15:44:14] Usuario selecionou impressora: BTP-L42(U)
+[2025-11-25 15:44:16] Abrindo porta COM4...
+[2025-11-25 15:44:16] COM4 aberta com sucesso.
+[2025-11-25 15:44:16] Iniciando monitoramento da COM4
+[2025-11-25 15:44:16] Impressora configurada: BTP-L42(U)
+[2025-11-25 15:44:36] Recebidos 273 bytes: '^XA
+^MD15
+^PW1200
+^BY3
+^CFQ^BY2^FO020,020^FDREF: 121202002 CAMISETA CASUAL MASC MC^FS
+^CFQ^FO020,052^FDCOR: 1300 AMARELO MALTA^FS
+^CFQ^FO020,084^FDTAM: P ^FS
+^CFQ^FO020,116^FDOP: ^FS
+^FO360,048^BY2^BEN,68,Y,N ^FD7900270440670^FS Ean Tag
+^CFQ^FO006,148^FD ^FS
+^FO0'
+[2025-11-25 15:44:36] Recebidos 6 bytes: '26,180'
+[2025-11-25 15:44:37] Recebidos 5 bytes: '^BCN,'
+[2025-11-25 15:44:37] Recebidos 2 bytes: '07'
+[2025-11-25 15:44:37] Recebidos 120 bytes: '5,Y,N,N,A^SN010240759#000016,1,Y^FS codigo de barra tag
+^FO430,182^XGR:CINCOLOBO.GRF^FS lobo acostamento
+^PQ1
+^XZ
+
+'
+[2025-11-25 15:44:37] ZPL recebido apos: 25018.00 ms
+[2025-11-25 15:44:37] ZPL completo detectado (^XZ). Iniciando tradução...
+[2025-11-25 15:44:37] Iniciando tradução ZPL2 -> BPLB com biblioteca avançada
+[2025-11-25 15:44:37] Configuracao fixa aplicada: N, D12, S3, JF, q600, Q260,24
+[2025-11-25 15:44:37] Processando campo ZPL: ^XA
+^MD15
+^PW1200
+^BY3
+^CFQ^BY2^FO020,020^FDREF: 121202002 CAMISETA CASUAL MASC MC
+[2025-11-25 15:44:37] Texto: [20,20] fonte=1 'REF: 121202002 CAMISETA CASUAL MASC MC'
+[2025-11-25 15:44:37] Processando campo ZPL: 
+^CFQ^FO020,052^FDCOR: 1300 AMARELO MALTA
+[2025-11-25 15:44:37] Texto: [20,52] fonte=1 'COR: 1300 AMARELO MALTA'
+[2025-11-25 15:44:37] Processando campo ZPL: 
+^CFQ^FO020,084^FDTAM: P 
+[2025-11-25 15:44:37] Texto: [20,84] fonte=1 'TAM: P '
+[2025-11-25 15:44:37] Processando campo ZPL: 
+^CFQ^FO020,116^FDOP: 
+[2025-11-25 15:44:37] Texto: [20,116] fonte=1 'OP: '
+[2025-11-25 15:44:37] Processando campo ZPL: 
+^FO360,048^BY2^BEN,68,Y,N ^FD7900270440670
+[2025-11-25 15:44:37] EAN extraído (14 chars): '7900270440670'
+[2025-11-25 15:44:37] Ajustando posicao: 360 -> 200
+[2025-11-25 15:44:37] Codigo barras: [200,48] h=60 '7900270440670'
+[2025-11-25 15:44:37] Processando campo ZPL:  Ean Tag
+^CFQ^FO006,148^FD 
+[2025-11-25 15:44:37] Texto: [6,148] fonte=1 ' '
+[2025-11-25 15:44:37] Processando campo ZPL: 
+^FO026,180^BCN,075,Y,N,N,A^SN010240759#000016,1,Y
+[2025-11-25 15:44:37] Dados do SN: '010240759#000016'
+[2025-11-25 15:44:37] Codigo barras: [26,180] h=75 '010240759#000016'
+[2025-11-25 15:44:37] Processando campo ZPL:  codigo de barra tag
+^FO430,182^XGR:CINCOLOBO.GRF
+[2025-11-25 15:44:37] Imagem GRF: [430,182] 'CINCOLOBO'
+[2025-11-25 15:44:37] Tradução BPLB concluída. 8 campos processados.
+[2025-11-25 15:44:37] Traducao concluida em: 1.00 ms
+[2025-11-25 15:44:37] Arquivo saida_bplb.txt gerado com sucesso.
+[2025-11-25 15:44:37] Tentando enviar saida_bplb.txt para impressora BTP-L42(U)
+[2025-11-25 15:44:37] Arquivo enviado com sucesso para a impressora. Bytes escritos: 368
+[2025-11-25 15:44:37] Arquivo enviado com sucesso para a impressora
+[2025-11-25 15:44:37] === TEMPOS DE EXECUCAO ===
+[2025-11-25 15:44:37] Tempo total: 25094.00 ms
+[2025-11-25 15:44:37] Tempo traducao: 1.00 ms
+[2025-11-25 15:44:37] Tempo impressao: 75.00 ms
+[2025-11-25 15:44:37] Tempo desde inicio: 25094.00 ms
+[2025-11-25 15:44:37] === FIM DA EXECUCAO ===
+[2025-11-25 15:48:08] Recebidos 341 bytes: '^XA
+^MD12
+^PW1200
+^BY3
+^CFQ^BY2^FO006,020^FD CAMISETA CASUAL MASC MC^FS
+^CFQ^FO006,052^FD AMARELO MALTA^FS
+^CFQ^FO006,084^FD 121202002          1300          P ^FS
+^CFQ^FO006,112^FD  ^FS
+^FO200,180^BCN,075,Y,N,N,A^SN010240759#000016,1,Y^FS codigo de barra tag
+^FT010,290^BQN,4,6
+^FH\^FDLA,7900270440670^FS Qrcode EAN
+^PQ1
+^XZ
+
+'
+[2025-11-25 15:48:08] ZPL recebido apos: 236044.00 ms
+[2025-11-25 15:48:08] ZPL completo detectado (^XZ). Iniciando tradução...
+[2025-11-25 15:48:08] Iniciando tradução ZPL2 -> BPLB com biblioteca avançada
+[2025-11-25 15:48:08] Configuracao fixa aplicada: N, D12, S3, JF, q600, Q260,24
+[2025-11-25 15:48:08] Processando campo ZPL: ^XA
+^MD12
+^PW1200
+^BY3
+^CFQ^BY2^FO006,020^FD CAMISETA CASUAL MASC MC
+[2025-11-25 15:48:08] Texto: [6,20] fonte=1 ' CAMISETA CASUAL MASC MC'
+[2025-11-25 15:48:08] Processando campo ZPL: 
+^CFQ^FO006,052^FD AMARELO MALTA
+[2025-11-25 15:48:08] Texto: [6,52] fonte=1 ' AMARELO MALTA'
+[2025-11-25 15:48:08] Processando campo ZPL: 
+^CFQ^FO006,084^FD 121202002          1300          P 
+[2025-11-25 15:48:08] Texto: [6,84] fonte=1 ' 121202002          1300          P '
+[2025-11-25 15:48:08] Processando campo ZPL: 
+^CFQ^FO006,112^FD  
+[2025-11-25 15:48:08] Texto: [6,112] fonte=1 '  '
+[2025-11-25 15:48:08] Processando campo ZPL: 
+^FO200,180^BCN,075,Y,N,N,A^SN010240759#000016,1,Y
+[2025-11-25 15:48:08] Dados do SN: '010240759#000016'
+[2025-11-25 15:48:08] Codigo barras: [200,180] h=75 '010240759#000016'
+[2025-11-25 15:48:08] Processando campo ZPL:  codigo de barra tag
+^FT010,290^BQN,4,6
+^FH\^FDLA,7900270440670
+[2025-11-25 15:48:08] Tradução BPLB concluída. 6 campos processados.
+[2025-11-25 15:48:08] Traducao concluida em: 1.00 ms
+[2025-11-25 15:48:08] Arquivo saida_bplb.txt gerado com sucesso.
+[2025-11-25 15:48:08] Tentando enviar saida_bplb.txt para impressora BTP-L42(U)
+[2025-11-25 15:48:08] Arquivo enviado com sucesso para a impressora. Bytes escritos: 286
+[2025-11-25 15:48:08] Arquivo enviado com sucesso para a impressora
+[2025-11-25 15:48:08] === TEMPOS DE EXECUCAO ===
+[2025-11-25 15:48:08] Tempo total: 236119.00 ms
+[2025-11-25 15:48:08] Tempo traducao: 1.00 ms
+[2025-11-25 15:48:08] Tempo impressao: 74.00 ms
+[2025-11-25 15:48:08] Tempo desde inicio: 236119.00 ms
+[2025-11-25 15:48:08] === FIM DA EXECUCAO ===

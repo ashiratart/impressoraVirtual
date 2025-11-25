@@ -4,6 +4,8 @@
 #include <time.h>
 #include <stdarg.h>
 #include <stdlib.h>
+#include "bplb.h"
+#include "zpl.h"  // Inclui o novo header
 
 #define BUF 4096
 
@@ -17,7 +19,7 @@ clock_t tempo_traducao;
 clock_t tempo_impressao;
 
 // ------------------------------------------------------------------
-// LOG
+// LOG (mantido igual)
 // ------------------------------------------------------------------
 void log_open()
 {
@@ -65,7 +67,7 @@ void log_printf(const char *fmt, ...)
 }
 
 // -----------------------------------------------------------
-// Funções para medir tempo
+// Funções para medir tempo (mantidas iguais)
 // -----------------------------------------------------------
 void iniciar_tempo()
 {
@@ -118,7 +120,7 @@ void log_tempo_apenas_arquivo()
 }
 
 // -----------------------------------------------------------
-// Função auxiliar
+// Função auxiliar (mantida para compatibilidade)
 // -----------------------------------------------------------
 int get_num(const char *src, const char *cmd)
 {
@@ -129,263 +131,33 @@ int get_num(const char *src, const char *cmd)
 }
 
 // -----------------------------------------------------------
-// TRADUTOR ZPL2 → BPLB AVANÇADO
+// CONFIGURAÇÃO GLOBAL COM CABEÇALHO FIXO
 // -----------------------------------------------------------
-
-// Função para extrair string de comando ZPL
-void get_zpl_string(const char *zpl, const char *command, char *output, int max_len) {
-    output[0] = '\0';
-    char *p = strstr(zpl, command);
-    if (!p) return;
+void process_global_settings_bplb(const char *zpl, FILE *out) {
+    // CABEÇALHO FIXO - SEMPRE usar estas configurações
+    bplb_clear_buffer(out);          // N
+    bplb_set_density(out, 15);       // D12
+    bplb_set_speed(out, 3);          // S3
+    fprintf(out, "JF" BPLB_LF);      // JF
+    bplb_set_label_width(out, 600);  // q600
+    bplb_set_label_size(out, 260, 24); // Q260,24
     
-    p += strlen(command);
-    int i = 0;
-    while (i < max_len - 1 && p[i] && p[i] != '^' && p[i] != '~' && p[i] != '\r' && p[i] != '\n') {
-        output[i] = p[i];
-        i++;
-    }
-    output[i] = '\0';
+    log_write("Configuracao fixa aplicada: N, D12, S3, JF, q600, Q260,24");
 }
 
-// Processa configurações globais da etiqueta
-void process_global_settings(const char *zpl, FILE *out) {
-    fprintf(out, "N\n"); // limpa buffer
-    
-    // MD - densidade de impressão
-    int md = get_num(zpl, "^MD");
-    if (md >= 0) {
-        fprintf(out, "D%d\n", md);
-        log_printf("MD (Densidade): %d", md);
-    }
-    
-    // PW - largura da etiqueta
-    int pw = get_num(zpl, "^PW");
-    if (pw >= 0) {
-        fprintf(out, "q%d\n", pw);
-        log_printf("PW (Largura): %d", pw);
-    }
-    
-    // LH - posição inicial
-    int lh_x = 0, lh_y = 0;
-    char *lh_pos = strstr(zpl, "^LH");
-    if (lh_pos && sscanf(lh_pos, "^LH%d,%d", &lh_x, &lh_y) == 2) {
-        fprintf(out, "// LH: x=%d, y=%d\n", lh_x, lh_y);
-        log_printf("LH (Home): %d,%d", lh_x, lh_y);
-    }
-    
-    // MM - modo de impressão
-    char mm_mode = 'T';
-    char *mm_pos = strstr(zpl, "^MM");
-    if (mm_pos) {
-        mm_mode = mm_pos[3];
-        fprintf(out, "// MM (Modo): %c\n", mm_mode);
-    }
-    
-    fprintf(out, "S3\n"); // velocidade padrão
-}
-
-// Processa campos de texto
-void process_text_field(const char *field_start, FILE *out) {
-    int x = 0, y = 0;
-    char font_type = '0', orientation = 'N';
-    int height = 10, width = 10;
-    char text[1024] = {0};
-    
-    // Extrai FO
-    char *fo_pos = strstr(field_start, "^FO");
-    if (fo_pos) {
-        sscanf(fo_pos, "^FO%d,%d", &x, &y);
-    }
-    
-    // Extrai A (fonte)
-    char *a_pos = strstr(field_start, "^A");
-    if (a_pos) {
-        if (sscanf(a_pos, "^A%c%c,%d,%d", &font_type, &orientation, &height, &width) < 2) {
-            sscanf(a_pos, "^A%c", &font_type);
-        }
-    }
-    
-    // Extrai FD (texto)
-    char *fd_pos = strstr(field_start, "^FD");
-    if (fd_pos) {
-        fd_pos += 3;
-        int i = 0;
-        while (fd_pos[i] && fd_pos[i] != '^' && i < 1023) {
-            // Para no próximo comando ou FS
-            if (fd_pos[i] == '^' && fd_pos[i+1] == 'F' && fd_pos[i+2] == 'S') break;
-            if (fd_pos[i] == '^' && fd_pos[i+1] == 'F' && fd_pos[i+2] == 'D') break;
-            text[i] = fd_pos[i];
-            i++;
-        }
-        text[i] = '\0';
-    }
-    
-    if (strlen(text) > 0) {
-        // Mapeamento de fontes ZPL para BPLB
-        char bplb_font = '3';
-        switch(font_type) {
-            case '0': bplb_font = '1'; break; // pequena
-            case '1': bplb_font = '2'; break; // média
-            case '2': bplb_font = '3'; break; // grande
-            case '3': bplb_font = '4'; break; // extra grande
-            default: bplb_font = '3'; break;
-        }
-        
-        // Mapeamento de orientação
-        int rotation = 0;
-        switch(orientation) {
-            case 'N': rotation = 0; break;
-            case 'R': rotation = 90; break;
-            case 'I': rotation = 180; break;
-            case 'B': rotation = 270; break;
-            default: rotation = 0; break;
-        }
-        
-        fprintf(out, "A%d,%d,%d,%c,1,1,N,\"%s\"\n", x, y, rotation, bplb_font, text);
-        log_printf("Texto: [%d,%d] fonte=%c '%s'", x, y, bplb_font, text);
-    }
-}
-
-// Processa código de barras
-void process_barcode_field(const char *field_start, FILE *out) {
-    int x = 0, y = 0;
-    char barcode_type[10] = {0};
-    int height = 10;
-    char data[256] = {0};
-    
-    // Extrai FO
-    char *fo_pos = strstr(field_start, "^FO");
-    if (fo_pos) {
-        sscanf(fo_pos, "^FO%d,%d", &x, &y);
-    }
-    
-    // Detecta tipo de código de barras
-    if (strstr(field_start, "^BC")) {
-        strcpy(barcode_type, "BC");
-        // Extrai altura do BC
-        char *bc_pos = strstr(field_start, "^BC");
-        if (bc_pos) {
-            char orientation;
-            if (sscanf(bc_pos, "^BC%c,%d", &orientation, &height) == 2) {
-                // altura extraída
-            } else {
-                height = 10; // padrão
-            }
-        }
-    }
-    else if (strstr(field_start, "^B2")) {
-        strcpy(barcode_type, "B2");
-        height = get_num(field_start, "^B2");
-        if (height <= 0) height = 10;
-    }
-    else if (strstr(field_start, "^BE")) {
-        strcpy(barcode_type, "BE");
-        height = get_num(field_start, "^BE");
-        if (height <= 0) height = 10;
-    }
-    else if (strstr(field_start, "^BEN") || strstr(field_start, "^BCN")) {
-        strcpy(barcode_type, "BCN");
-        height = 15; // padrão para code 128
-    }
-    
-    // Extrai dados
-    char *fd_pos = strstr(field_start, "^FD");
-    if (fd_pos) {
-        fd_pos += 3;
-        int i = 0;
-        while (fd_pos[i] && fd_pos[i] != '^' && i < 255) {
-            if (fd_pos[i] == '^' && fd_pos[i+1] == 'F' && fd_pos[i+2] == 'S') break;
-            data[i] = fd_pos[i];
-            i++;
-        }
-        data[i] = '\0';
-    }
-    
-    if (strlen(data) > 0) {
-        // Mapeamento de tipos de código de barras
-        int bplb_type = 1; // Code 128 padrão
-        
-        if (strcmp(barcode_type, "B2") == 0) {
-            bplb_type = 3; // Interleaved 2 of 5
-        } else if (strcmp(barcode_type, "BE") == 0) {
-            bplb_type = 8; // EAN-13
-        }
-        
-        fprintf(out, "B%d,%d,0,%d,2,4,%d,B,\"%s\"\n", x, y, bplb_type, height, data);
-        log_printf("Código Barras [%s]: [%d,%d] h=%d '%s'", barcode_type, x, y, height, data);
-    }
-}
-
-// Processa elementos gráficos
-void process_graphic_field(const char *field_start, FILE *out) {
-    int x = 0, y = 0;
-    
-    // Extrai FO
-    char *fo_pos = strstr(field_start, "^FO");
-    if (fo_pos) {
-        sscanf(fo_pos, "^FO%d,%d", &x, &y);
-    }
-    
-    // GB - Caixa/Retângulo
-    if (strstr(field_start, "^GB")) {
-        int width = 100, height = 50, thickness = 2;
-        char *gb_pos = strstr(field_start, "^GB");
-        if (gb_pos) {
-            sscanf(gb_pos, "^GB%d,%d,%d", &width, &height, &thickness);
-        }
-        fprintf(out, "X%d,%d,%d,%d,%d\n", x, y, width, height, thickness);
-        log_printf("Caixa: [%d,%d] %dx%d esp=%d", x, y, width, height, thickness);
-    }
-    
-    // GC - Círculo
-    else if (strstr(field_start, "^GC")) {
-        int diameter = 50, thickness = 2;
-        char *gc_pos = strstr(field_start, "^GC");
-        if (gc_pos) {
-            sscanf(gc_pos, "^GC%d,%d", &diameter, &thickness);
-        }
-        fprintf(out, "// Círculo: [%d,%d] diam=%d esp=%d\n", x, y, diameter, thickness);
-        log_printf("Círculo: [%d,%d] diam=%d", x, y, diameter);
-    }
-}
-
-// Processa imagens
-void process_image_field(const char *field_start, FILE *out) {
-    int x = 0, y = 0;
-    char image_name[128] = {0};
-    
-    // Extrai FO
-    char *fo_pos = strstr(field_start, "^FO");
-    if (fo_pos) {
-        sscanf(fo_pos, "^FO%d,%d", &x, &y);
-    }
-    
-    // XG - Recuperar imagem
-    if (strstr(field_start, "^XG")) {
-        char *xg_pos = strstr(field_start, "^XG");
-        if (xg_pos) {
-            // Extrai nome do arquivo (até próxima vírgula ou espaço)
-            int i = 3; // Pula "^XG"
-            while (xg_pos[i] && xg_pos[i] != ',' && xg_pos[i] != '^' && xg_pos[i] != ' ' && i < 127) {
-                image_name[i-3] = xg_pos[i];
-                i++;
-            }
-            image_name[i-3] = '\0';
-        }
-        
-        if (strlen(image_name) > 0) {
-            fprintf(out, "GG%d,%d,\"%s\"\n", x, y, image_name);
-            log_printf("Imagem: [%d,%d] '%s'", x, y, image_name);
-        }
-    }
-}
-
-// Função principal de tradução AVANÇADA
+// -----------------------------------------------------------
+// TRADUTOR ZPL2 → BPLB USANDO O NOVO HEADER (CORRIGIDO)
+// -----------------------------------------------------------
 void traduz_zpl_para_bplb_avancado(char *zpl, FILE *out) {
-    log_write("Iniciando tradução ZPL2 -> BPLB avançada");
+    log_write("Iniciando tradução ZPL2 -> BPLB com biblioteca avançada");
     
     // Processa configurações globais
-    process_global_settings(zpl, out);
+    process_global_settings_bplb(zpl, out);
+    
+    // Processa ^XA (início do formato)
+    if (strstr(zpl, "^XA")) {
+        fprintf(out, "// Início do formato ZPL\n");
+    }
     
     // Divide o ZPL em campos (separados por ^FS)
     char *field_start = zpl;
@@ -405,21 +177,179 @@ void traduz_zpl_para_bplb_avancado(char *zpl, FILE *out) {
         strncpy(field_buffer, field_start, field_len);
         field_buffer[field_len] = '\0';
         
-        // Classifica e processa o campo
-        if (strstr(field_buffer, "^FO") && strstr(field_buffer, "^FD")) {
-            if (strstr(field_buffer, "^BC") || strstr(field_buffer, "^B2") || 
-                strstr(field_buffer, "^BE") || strstr(field_buffer, "^BEN")) {
-                process_barcode_field(field_buffer, out);
+        log_printf("Processando campo ZPL: %s", field_buffer);
+        
+        // Extrai coordenadas FO (se existir)
+        int x = 0, y = 0;
+        char *fo_pos = strstr(field_buffer, "^FO");
+        if (fo_pos) {
+            sscanf(fo_pos, "^FO%d,%d", &x, &y);
+        }
+        
+        // ==================================================
+        // CLASSIFICA E PROCESSA O CAMPO (VERSÃO CORRIGIDA)
+        // ==================================================
+        
+        // 1. PRIMEIRO VERIFICA SE É CÓDIGO DE BARRAS (mesmo sem FD)
+        if (fo_pos && (strstr(field_buffer, "^BC") || strstr(field_buffer, "^BEN") || 
+                      strstr(field_buffer, "^BCN") || strstr(field_buffer, "^BE"))) {
+                    
+            char texto[256] = {0};
+            int altura = 60; // padrão
+                    
+            // Extrai altura do código de barras
+            if (strstr(field_buffer, "^BEN")) {
+                char *ben_pos = strstr(field_buffer, "^BEN");
+                char orientation;
+                if (sscanf(ben_pos, "^BEN%c,%d", &orientation, &altura) == 2) {
+                    // altura extraída
+                }
+            } else if (strstr(field_buffer, "^BC")) {
+                char *bc_pos = strstr(field_buffer, "^BC");
+                char orientation;
+                if (sscanf(bc_pos, "^BC%c,%d", &orientation, &altura) == 2) {
+                    // altura extraída
+                }
             }
-            else if (strstr(field_buffer, "^GB") || strstr(field_buffer, "^GC")) {
-                process_graphic_field(field_buffer, out);
+
+            // CORREÇÃO: Extração mais robusta para EAN
+            char *fd_pos = strstr(field_buffer, "^FD");
+            if (fd_pos) {
+                fd_pos += 3; // Pula "^FD"
+
+                // PARA EAN: corta em 14 caracteres (EAN-13 + dígito)
+                if (strstr(field_buffer, "^BEN") || strstr(field_buffer, "^BE")) {
+                    // É EAN - pega apenas 14 caracteres
+                    int i = 0;
+                    while (i < 14 && fd_pos[i] && fd_pos[i] != '^' && fd_pos[i] != '\'') {
+                        texto[i] = fd_pos[i];
+                        i++;
+                    }
+                    texto[i] = '\0';
+                    log_printf("EAN extraído (14 chars): '%s'", texto);
+                } else {
+                    // É outro tipo de código - pega até o próximo comando
+                    int i = 0;
+                    while (fd_pos[i] && fd_pos[i] != '^' && i < 255) {
+                        texto[i] = fd_pos[i];
+                        i++;
+                    }
+                    texto[i] = '\0';
+                    log_printf("Código extraído: '%s'", texto);
+                }
             }
-            else if (strstr(field_buffer, "^XG")) {
-                process_image_field(field_buffer, out);
+
+            // Se não encontrou no FD, tenta SN
+            if (strlen(texto) == 0) {
+                char *sn_pos = strstr(field_buffer, "^SN");
+                if (sn_pos) {
+                    sn_pos += 3;
+                    int i = 0;
+                    while (sn_pos[i] && sn_pos[i] != ',' && sn_pos[i] != '^' && i < 255) {
+                        texto[i] = sn_pos[i];
+                        i++;
+                    }
+                    texto[i] = '\0';
+                    log_printf("Dados do SN: '%s'", texto);
+                }
             }
-            else if (strstr(field_buffer, "^A") || strstr(field_buffer, "^FD")) {
-                process_text_field(field_buffer, out);
+
+            if (strlen(texto) > 0) {
+                // AJUSTE DE POSIÇÃO
+                int adjusted_x = x;
+                if (x > 300) {
+                    adjusted_x = 200;
+                    log_printf("Ajustando posicao: %d -> %d", x, adjusted_x);
+                }
+
+                fprintf(out, "B%d,%d,0,1,2,4,%d,B,\"%s\"\n", adjusted_x, y, altura, texto);
+                log_printf("Codigo barras: [%d,%d] h=%d '%s'", adjusted_x, y, altura, texto);
             }
+        }
+        // 2. DEPOIS VERIFICA SE É TEXTO
+        else if (fo_pos && strstr(field_buffer, "^FD")) {
+            
+            char texto[256] = {0};
+            char *fd_pos = strstr(field_buffer, "^FD");
+            if (fd_pos) {
+                fd_pos += 3;
+                int i = 0;
+                while (fd_pos[i] && fd_pos[i] != '^' && i < 255) {
+                    texto[i] = fd_pos[i];
+                    i++;
+                }
+                texto[i] = '\0';
+            }
+            
+            if (strlen(texto) > 0 && strlen(texto) < 200) { // texto válido
+                char font = '0';
+                char *a_pos = strstr(field_buffer, "^A");
+                if (a_pos) {
+                    char orientation;
+                    int height, width;
+                    if (sscanf(a_pos, "^A%c%c,%d,%d", &font, &orientation, &height, &width) < 2) {
+                        sscanf(a_pos, "^A%c", &font);
+                    }
+                }
+                
+                // Mapeamento de fonte ZPL para BPLB
+                char bplb_font = '3';
+                switch(font) {
+                    case '0': bplb_font = '1'; break;
+                    case '1': bplb_font = '2'; break;  
+                    case '2': bplb_font = '3'; break;
+                    default: bplb_font = '3'; break;
+                }
+                
+                fprintf(out, "A%d,%d,0,%c,1,1,N,\"%s\"\n", x, y, bplb_font, texto);
+                log_printf("Texto: [%d,%d] fonte=%c '%s'", x, y, bplb_font, texto);
+            }
+        }
+        else if (fo_pos && strstr(field_buffer, "^GB")) {
+            // CAIXA GRÁFICA
+            int width = 100, height = 50, thickness = 2;
+            char *gb_pos = strstr(field_buffer, "^GB");
+            if (gb_pos) {
+                sscanf(gb_pos, "^GB%d,%d,%d", &width, &height, &thickness);
+            }
+            convert_GB_to_BPLB(x, y, width, height, thickness, out);
+            log_printf("Caixa: [%d,%d] %dx%d esp=%d", x, y, width, height, thickness);
+        }
+        else if (fo_pos && strstr(field_buffer, "^XG")) {
+        // IMAGEM .GRF - Comando ZPL: ^XGR:NAME.GRF
+            char image_name[128] = {0};
+            char *xg_pos = strstr(field_buffer, "^XG");
+            if (xg_pos) {
+                xg_pos += 3; // Pula "^XG"
+                int i = 0;
+                
+                // Pula o "R:" se existir (é parte do comando ZPL, não do nome)
+                if (xg_pos[0] == 'R' && xg_pos[1] == ':') {
+                    xg_pos += 2; // Pula "R:"
+                }
+                
+                // Extrai o nome do arquivo (até .GRF ou próximo comando)
+                while (xg_pos[i] && xg_pos[i] != ',' && xg_pos[i] != '^' && 
+                       xg_pos[i] != ' ' && i < 127) {
+                    image_name[i] = xg_pos[i];
+                    i++;
+                }
+                image_name[i] = '\0';
+                
+                // Remove a extensão .GRF se existir (o comando GG não precisa)
+                char *dot = strrchr(image_name, '.');
+                if (dot) *dot = '\0';
+                
+                if (strlen(image_name) > 0) {
+                    // Comando BPLB para imagem: GGx,y,"nome"
+                    fprintf(out, "GG%d,%d,\"%s\"\n", x, y, image_name);
+                    log_printf("Imagem GRF: [%d,%d] '%s'", x, y, image_name);
+                }
+            }
+        }
+        else if (strstr(field_buffer, "^FX")) {
+            // COMENTÁRIO
+            fprintf(out, "// %s\n", field_buffer + 3);
         }
         
         field_count++;
@@ -430,10 +360,15 @@ void traduz_zpl_para_bplb_avancado(char *zpl, FILE *out) {
     int pq = get_num(zpl, "^PQ");
     if (pq < 1) pq = 1;
     
-    fprintf(out, "P%d\n", pq);
-    log_printf("Quantidade: %d cópias", pq);
+    // Comando de impressão
+    fprintf(out, "P%d,1\n", pq);
     
-    log_printf("Tradução concluída. %d campos processados.", field_count);
+    // Processa ^XZ (fim do formato)
+    if (strstr(zpl, "^XZ")) {
+        fprintf(out, "// Fim do formato ZPL\n");
+    }
+    
+    log_printf("Tradução BPLB concluída. %d campos processados.", field_count);
 }
 
 // -----------------------------------------------------------
@@ -446,7 +381,73 @@ void traduz_zpl_para_bplb(char *zpl, FILE *out)
 }
 
 // -----------------------------------------------------------
-// Listar todas as impressoras disponíveis
+// Verificar permissões do sistema
+// -----------------------------------------------------------
+void verificar_permissoes()
+{
+    log_write("=== VERIFICACAO DE PERMISSOES ===");
+    
+    HANDLE hToken;
+    if (OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &hToken)) {
+        log_write("Processo tem acesso ao token de segurança");
+        CloseHandle(hToken);
+    } else {
+        log_printf("Erro ao abrir token: %lu", GetLastError());
+    }
+    
+    // Tentar acessar o registro de impressoras
+    HKEY hKey;
+    if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SYSTEM\\CurrentControlSet\\Control\\Print\\Printers", 
+                     0, KEY_READ, &hKey) == ERROR_SUCCESS) {
+        log_write("Acesso ao registro de impressoras: OK");
+        RegCloseKey(hKey);
+    } else {
+        log_write("Acesso ao registro de impressoras: FALHA");
+    }
+}
+
+// -----------------------------------------------------------
+// Função alternativa para detectar impressoras
+// -----------------------------------------------------------
+void detectar_impressoras_alternativo()
+{
+    log_write("=== DETECÇÃO ALTERNATIVA DE IMPRESSORAS ===");
+    
+    // Método 1: Usando EnumPrinters com diferentes flags
+    DWORD flags[] = {
+        PRINTER_ENUM_LOCAL,
+        PRINTER_ENUM_CONNECTIONS,
+        PRINTER_ENUM_NETWORK,
+        PRINTER_ENUM_REMOTE,
+        PRINTER_ENUM_SHARED
+    };
+    
+    const char* flag_names[] = {
+        "LOCAL",
+        "CONNECTIONS", 
+        "NETWORK",
+        "REMOTE",
+        "SHARED"
+    };
+    
+    for (int i = 0; i < 5; i++) {
+        DWORD needed = 0, returned = 0;
+        
+        if (EnumPrinters(flags[i], NULL, 2, NULL, 0, &needed, &returned)) {
+            log_printf("Flag %s: %lu impressoras", flag_names[i], returned);
+        } else {
+            DWORD error = GetLastError();
+            if (error == ERROR_INSUFFICIENT_BUFFER) {
+                log_printf("Flag %s: %lu impressoras (buffer insuficiente)", flag_names[i], returned);
+            } else {
+                log_printf("Flag %s: erro %lu", flag_names[i], error);
+            }
+        }
+    }
+}
+
+// -----------------------------------------------------------
+// Listar todas as impressoras disponíveis (VERSÃO MELHORADA)
 // -----------------------------------------------------------
 char** listar_impressoras(int* count)
 {
@@ -455,29 +456,58 @@ char** listar_impressoras(int* count)
     
     DWORD needed = 0, returned = 0;
     
-    // Primeiro obtemos o tamanho necessário
-    EnumPrinters(PRINTER_ENUM_LOCAL | PRINTER_ENUM_CONNECTIONS, NULL, 2, 
-                 NULL, 0, &needed, &returned);
+    log_write("Iniciando enumeração de impressoras...");
     
-    if (needed > 0 && returned > 0) {
+    // Primeiro tentamos com PRINTER_ENUM_NAME
+    if (!EnumPrinters(PRINTER_ENUM_LOCAL | PRINTER_ENUM_CONNECTIONS, NULL, 2, 
+                     NULL, 0, &needed, &returned)) {
+        DWORD error = GetLastError();
+        if (error != ERROR_INSUFFICIENT_BUFFER) {
+            log_printf("Erro no EnumPrinters (1): %lu", error);
+            return NULL;
+        }
+    }
+    
+    if (needed > 0) {
         BYTE* printer_info = (BYTE*)malloc(needed);
         
         if (EnumPrinters(PRINTER_ENUM_LOCAL | PRINTER_ENUM_CONNECTIONS, NULL, 2, 
                         printer_info, needed, &needed, &returned)) {
             
-            PRINTER_INFO_2* printers = (PRINTER_INFO_2*)printer_info;
+            log_printf("Encontradas %lu impressoras no sistema", returned);
             
-            // Alocar array para os nomes
-            impressoras = (char**)malloc(returned * sizeof(char*));
-            
-            for (DWORD i = 0; i < returned; i++) {
-                if (printers[i].pPrinterName) {
-                    impressoras[i] = _strdup(printers[i].pPrinterName);
-                    (*count)++;
+            if (returned > 0) {
+                PRINTER_INFO_2* printers = (PRINTER_INFO_2*)printer_info;
+                
+                // Alocar array para os nomes
+                impressoras = (char**)malloc(returned * sizeof(char*));
+                
+                for (DWORD i = 0; i < returned; i++) {
+                    if (printers[i].pPrinterName) {
+                        impressoras[i] = _strdup(printers[i].pPrinterName);
+                        (*count)++;
+                        log_printf("Impressora %d: %s", i + 1, printers[i].pPrinterName);
+                        
+                        // Log adicional para debug
+                        if (printers[i].pDriverName) {
+                            log_printf("  Driver: %s", printers[i].pDriverName);
+                        }
+                        if (printers[i].pPortName) {
+                            log_printf("  Porta: %s", printers[i].pPortName);
+                        }
+                    }
                 }
+            } else {
+                log_write("Nenhuma impressora encontrada no sistema");
             }
+        } else {
+            DWORD error = GetLastError();
+            log_printf("Erro no EnumPrinters (2): %lu", error);
         }
+        
         free(printer_info);
+    } else {
+        log_write("Nenhuma impressora encontrada (buffer vazio)");
     }
     
     return impressoras;
@@ -540,11 +570,14 @@ char* selecionar_impressora_menu()
 }
 
 // -----------------------------------------------------------
-// Menu principal de configuração
+// Menu principal de configuração (VERSÃO MELHORADA)
 // -----------------------------------------------------------
 void menu_configuracao()
 {
     int opcao;
+    
+    // Executar detecção alternativa no início
+    detectar_impressoras_alternativo();
     
     do {
         printf("\n=== CONFIGURACAO DA IMPRESSORA ===\n");
@@ -555,8 +588,9 @@ void menu_configuracao()
         }
         printf("\n[1] - Selecionar/alterar impressora\n");
         printf("[2] - Remover impressora selecionada\n");
-        printf("[3] - Iniciar monitoramento COM4\n");
-        printf("[4] - Sair\n");
+        printf("[3] - Listar impressoras (debug)\n");
+        printf("[4] - Iniciar monitoramento COM4\n");
+        printf("[5] - Sair\n");
         printf("\nEscolha: ");
         
         if (scanf("%d", &opcao) != 1) {
@@ -590,9 +624,14 @@ void menu_configuracao()
                 }
                 break;
             case 3:
+                printf("\n=== LISTAGEM DE IMPRESSORAS (DEBUG) ===\n");
+                detectar_impressoras_alternativo();
+                printf("Verifique o arquivo tradutor.log para detalhes.\n");
+                break;
+            case 4:
                 printf("Iniciando monitoramento...\n");
                 return; // Sai do menu e inicia o monitoramento
-            case 4:
+            case 5:
                 log_write("Programa finalizado pelo usuario");
                 exit(0);
             default:
@@ -690,6 +729,9 @@ int main()
 {
     log_open();
     log_write("Tradutor ZPL2->BPLB Avançado iniciado.");
+    
+    // Verificar permissões do sistema
+    verificar_permissoes();
     
     // Iniciar contagem de tempo
     iniciar_tempo();
@@ -811,11 +853,3 @@ int main()
     CloseHandle(h);
     return 0;
 }
-
-
-
-
-
-
-
-// gcc -o tradutor_zpl.exe main.c bplb.c -lwinspool -luser32 -lkernel32 -O2 -Wall

@@ -1,0 +1,14 @@
+N
+D15
+S3
+JF
+q600
+Q260,24
+// Início do formato ZPL
+A6,20,0,1,1,1,N," CAMISETA CASUAL MASC MC"
+A6,52,0,1,1,1,N," AMARELO MALTA"
+A6,84,0,1,1,1,N," 121202002          1300          P "
+A6,112,0,1,1,1,N,"  "
+B200,180,0,1,2,4,75,B,"010240759#000016"
+P1,1
+// Fim do formato ZPL

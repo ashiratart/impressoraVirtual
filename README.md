@@ -16,3 +16,7 @@ drivers_impressora_virtual/
 ├── build/
 └── README.md
 ```
+
+
+
+// gcc -o tradutor_zpl_bpl.exe testcomlibs.c bplb.c -lwinspool -luser32 -lkernel32 -O2 -Wall

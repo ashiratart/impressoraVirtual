@@ -329,34 +329,28 @@ void process_image_field(const char *field_start, FILE *out) {
 
 // Processa configurações globais usando BPLB
 void process_global_settings_bplb(const char *zpl, FILE *out) {
-    // Limpa buffer
-    bplb_clear_buffer(out);
+    // CABEÇALHO FIXO - SEMPRE usar estas configurações
+    bplb_clear_buffer(out);          // N
+    bplb_set_density(out, 12);       // D12
+    bplb_set_speed(out, 3);          // S3
+    fprintf(out, "JF" BPLB_LF);      // JF
+    bplb_set_label_width(out, 600);  // q600
+    bplb_set_label_size(out, 260, 24); // Q260,24
     
-    // MD - densidade de impressão
-    int md = get_num(zpl, "^MD");
-    if (md >= 0) {
-        bplb_set_density(out, md);
-        log_printf("MD (Densidade): %d", md);
-    }
+    // Desabilita backfeed
+    bplb_disable_backfeed(out);      // a0
     
-    // PW - largura da etiqueta
+    log_write("Configuracao fixa aplicada: N, D12, S3, JF, q600, Q260,24, a0");
+    
+    // Apenas log das configurações do ZPL (sem usar)
     int pw = get_num(zpl, "^PW");
+    int md = get_num(zpl, "^MD");
     if (pw >= 0) {
-        bplb_set_label_width(out, pw);
-        log_printf("PW (Largura): %d", pw);
+        log_printf("ZPL PW ignorado (usando fixo): %d", pw);
     }
-    
-    // LH - posição inicial (comentário)
-    int lh_x = 0, lh_y = 0;
-    char *lh_pos = strstr(zpl, "^LH");
-    if (lh_pos && sscanf(lh_pos, "^LH%d,%d", &lh_x, &lh_y) == 2) {
-        fprintf(out, "// LH: x=%d, y=%d\n", lh_x, lh_y);
-        log_printf("LH (Home): %d,%d", lh_x, lh_y);
+    if (md >= 0) {
+        log_printf("ZPL MD ignorado (usando fixo): %d", md);
     }
-    
-    // Configurações padrão
-    bplb_set_speed(out, 3); // Velocidade máxima
-    bplb_disable_backfeed(out); // Desabilita backfeed
 }
 
 // Função principal de tradução usando BPLB
@@ -426,7 +420,73 @@ void traduz_zpl_para_bplb(char *zpl, FILE *out)
 }
 
 // -----------------------------------------------------------
-// Listar todas as impressoras disponíveis
+// Verificar permissões do sistema
+// -----------------------------------------------------------
+void verificar_permissoes()
+{
+    log_write("=== VERIFICACAO DE PERMISSOES ===");
+    
+    HANDLE hToken;
+    if (OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &hToken)) {
+        log_write("Processo tem acesso ao token de segurança");
+        CloseHandle(hToken);
+    } else {
+        log_printf("Erro ao abrir token: %lu", GetLastError());
+    }
+    
+    // Tentar acessar o registro de impressoras
+    HKEY hKey;
+    if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SYSTEM\\CurrentControlSet\\Control\\Print\\Printers", 
+                     0, KEY_READ, &hKey) == ERROR_SUCCESS) {
+        log_write("Acesso ao registro de impressoras: OK");
+        RegCloseKey(hKey);
+    } else {
+        log_write("Acesso ao registro de impressoras: FALHA");
+    }
+}
+
+// -----------------------------------------------------------
+// Função alternativa para detectar impressoras
+// -----------------------------------------------------------
+void detectar_impressoras_alternativo()
+{
+    log_write("=== DETECÇÃO ALTERNATIVA DE IMPRESSORAS ===");
+    
+    // Método 1: Usando EnumPrinters com diferentes flags
+    DWORD flags[] = {
+        PRINTER_ENUM_LOCAL,
+        PRINTER_ENUM_CONNECTIONS,
+        PRINTER_ENUM_NETWORK,
+        PRINTER_ENUM_REMOTE,
+        PRINTER_ENUM_SHARED
+    };
+    
+    const char* flag_names[] = {
+        "LOCAL",
+        "CONNECTIONS", 
+        "NETWORK",
+        "REMOTE",
+        "SHARED"
+    };
+    
+    for (int i = 0; i < 5; i++) {
+        DWORD needed = 0, returned = 0;
+        
+        if (EnumPrinters(flags[i], NULL, 2, NULL, 0, &needed, &returned)) {
+            log_printf("Flag %s: %lu impressoras", flag_names[i], returned);
+        } else {
+            DWORD error = GetLastError();
+            if (error == ERROR_INSUFFICIENT_BUFFER) {
+                log_printf("Flag %s: %lu impressoras (buffer insuficiente)", flag_names[i], returned);
+            } else {
+                log_printf("Flag %s: erro %lu", flag_names[i], error);
+            }
+        }
+    }
+}
+
+// -----------------------------------------------------------
+// Listar todas as impressoras disponíveis (VERSÃO MELHORADA)
 // -----------------------------------------------------------
 char** listar_impressoras(int* count)
 {
@@ -435,29 +495,58 @@ char** listar_impressoras(int* count)
     
     DWORD needed = 0, returned = 0;
     
-    // Primeiro obtemos o tamanho necessário
-    EnumPrinters(PRINTER_ENUM_LOCAL | PRINTER_ENUM_CONNECTIONS, NULL, 2, 
-                 NULL, 0, &needed, &returned);
+    log_write("Iniciando enumeração de impressoras...");
     
-    if (needed > 0 && returned > 0) {
+    // Primeiro tentamos com PRINTER_ENUM_NAME
+    if (!EnumPrinters(PRINTER_ENUM_LOCAL | PRINTER_ENUM_CONNECTIONS, NULL, 2, 
+                     NULL, 0, &needed, &returned)) {
+        DWORD error = GetLastError();
+        if (error != ERROR_INSUFFICIENT_BUFFER) {
+            log_printf("Erro no EnumPrinters (1): %lu", error);
+            return NULL;
+        }
+    }
+    
+    if (needed > 0) {
         BYTE* printer_info = (BYTE*)malloc(needed);
         
         if (EnumPrinters(PRINTER_ENUM_LOCAL | PRINTER_ENUM_CONNECTIONS, NULL, 2, 
                         printer_info, needed, &needed, &returned)) {
             
-            PRINTER_INFO_2* printers = (PRINTER_INFO_2*)printer_info;
+            log_printf("Encontradas %lu impressoras no sistema", returned);
             
-            // Alocar array para os nomes
-            impressoras = (char**)malloc(returned * sizeof(char*));
-            
-            for (DWORD i = 0; i < returned; i++) {
-                if (printers[i].pPrinterName) {
-                    impressoras[i] = _strdup(printers[i].pPrinterName);
-                    (*count)++;
+            if (returned > 0) {
+                PRINTER_INFO_2* printers = (PRINTER_INFO_2*)printer_info;
+                
+                // Alocar array para os nomes
+                impressoras = (char**)malloc(returned * sizeof(char*));
+                
+                for (DWORD i = 0; i < returned; i++) {
+                    if (printers[i].pPrinterName) {
+                        impressoras[i] = _strdup(printers[i].pPrinterName);
+                        (*count)++;
+                        log_printf("Impressora %d: %s", i + 1, printers[i].pPrinterName);
+                        
+                        // Log adicional para debug
+                        if (printers[i].pDriverName) {
+                            log_printf("  Driver: %s", printers[i].pDriverName);
+                        }
+                        if (printers[i].pPortName) {
+                            log_printf("  Porta: %s", printers[i].pPortName);
+                        }
+                    }
                 }
+            } else {
+                log_write("Nenhuma impressora encontrada no sistema");
             }
+        } else {
+            DWORD error = GetLastError();
+            log_printf("Erro no EnumPrinters (2): %lu", error);
         }
+        
         free(printer_info);
+    } else {
+        log_write("Nenhuma impressora encontrada (buffer vazio)");
     }
     
     return impressoras;
@@ -520,11 +609,14 @@ char* selecionar_impressora_menu()
 }
 
 // -----------------------------------------------------------
-// Menu principal de configuração
+// Menu principal de configuração (VERSÃO MELHORADA)
 // -----------------------------------------------------------
 void menu_configuracao()
 {
     int opcao;
+    
+    // Executar detecção alternativa no início
+    detectar_impressoras_alternativo();
     
     do {
         printf("\n=== CONFIGURACAO DA IMPRESSORA ===\n");
@@ -535,8 +627,9 @@ void menu_configuracao()
         }
         printf("\n[1] - Selecionar/alterar impressora\n");
         printf("[2] - Remover impressora selecionada\n");
-        printf("[3] - Iniciar monitoramento COM4\n");
-        printf("[4] - Sair\n");
+        printf("[3] - Listar impressoras (debug)\n");
+        printf("[4] - Iniciar monitoramento COM4\n");
+        printf("[5] - Sair\n");
         printf("\nEscolha: ");
         
         if (scanf("%d", &opcao) != 1) {
@@ -570,9 +663,14 @@ void menu_configuracao()
                 }
                 break;
             case 3:
+                printf("\n=== LISTAGEM DE IMPRESSORAS (DEBUG) ===\n");
+                detectar_impressoras_alternativo();
+                printf("Verifique o arquivo tradutor.log para detalhes.\n");
+                break;
+            case 4:
                 printf("Iniciando monitoramento...\n");
                 return; // Sai do menu e inicia o monitoramento
-            case 4:
+            case 5:
                 log_write("Programa finalizado pelo usuario");
                 exit(0);
             default:
@@ -669,14 +767,16 @@ BOOL enviar_para_impressora(const char* nome_arquivo, const char* nome_impressor
 int main()
 {
     log_open();
-    log_write("Tradutor ZPL2->BPLB Avançado com Biblioteca BPLB iniciado.");
+    log_write("Tradutor ZPL2->BPLB Avançado iniciado.");
+    
+    // Verificar permissões do sistema
+    verificar_permissoes();
     
     // Iniciar contagem de tempo
     iniciar_tempo();
     
-    printf("=== TRADUTOR ZPL para BPLB (AVANÇADO COM BIBLIOTECA BPLB) ===\n");
-    printf("Suporte a: Textos, Code128, Interleaved 2of5, EAN, Caixas, Imagens\n");
-    printf("Usando biblioteca BPLB para comandos padronizados\n\n");
+    printf("=== TRADUTOR ZPL para BPLB (AVANÇADO) ===\n");
+    printf("Suporte a: Textos, Code128, Interleaved 2of5, EAN, Caixas, Imagens\n\n");
     
     // Mostrar menu de configuração inicial
     menu_configuracao();
@@ -721,10 +821,9 @@ int main()
 
     printf("\nAguardando ZPL na COM4...\n");
     printf("Impressora selecionada: %s\n", impressora_selecionada ? impressora_selecionada : "NENHUMA (apenas arquivo)");
-    printf("Biblioteca BPLB: ATIVA\n");
     printf("Pressione Ctrl+C para parar\n\n");
     
-    log_write("Iniciando monitoramento da COM4 com biblioteca BPLB");
+    log_write("Iniciando monitoramento da COM4");
     if (impressora_selecionada) {
         log_printf("Impressora configurada: %s", impressora_selecionada);
     } else {
@@ -753,7 +852,7 @@ int main()
                 // Marcar tempo de recebimento do ZPL completo
                 log_tempo_recebimento_zpl();
                 
-                log_write("ZPL completo detectado (^XZ). Iniciando tradução com BPLB...");
+                log_write("ZPL completo detectado (^XZ). Iniciando tradução...");
 
                 FILE *out = fopen("saida_bplb.txt", "w");
                 traduz_zpl_para_bplb_avancado(zpl, out);
@@ -762,8 +861,8 @@ int main()
                 // Marcar tempo de conclusão da tradução
                 log_tempo_traducao();
 
-                printf("ZPL traduzido → saida_bplb.txt (usando BPLB)\n");
-                log_write("Arquivo saida_bplb.txt gerado com sucesso usando biblioteca BPLB.");
+                printf("ZPL traduzido → saida_bplb.txt\n");
+                log_write("Arquivo saida_bplb.txt gerado com sucesso.");
 
                 // Enviar para impressora se configurada
                 if (impressora_selecionada) {
@@ -791,7 +890,5 @@ int main()
 
     if (impressora_selecionada) free(impressora_selecionada);
     CloseHandle(h);
-    
-    if (glog) fclose(glog);
     return 0;
 }
